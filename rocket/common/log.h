@@ -4,8 +4,8 @@
 #include<string>
 #include<memory>
 #include<queue>
-#include"rocket/common/util.h"
-
+#include"rocket/common/config.h"
+#include"rocket/common/mutex.h"
 
 namespace rocket{
 
@@ -22,40 +22,74 @@ std::string formatString(const char* str,Args&&... args){
     return result;
 }
 
+/*宏打印日志信息*/
 
-#define DEBUGLOG(str, ...)\
-    std::string msg =  (new rocket::LogEvent(rocket::LogLevel::Debug))->toString() + rocket::formatString(str,##__VA_ARGS__);\
-    msg += "\n";\
-    rocket::Logger::GetGlobalLogger()->pushLog(msg);\
+#define DEBUGLOG(str, ...) \
+  if (rocket::Logger::GetGlobalLogger()->getLogLevel() && rocket::Logger::GetGlobalLogger()->getLogLevel() <= rocket::Debug) \
+  { \
+    rocket::Logger::GetGlobalLogger()->pushLog(rocket::LogEvent(rocket::LogLevel::Debug).toString() \
+      + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
+  } \
+
+
+#define INFOLOG(str, ...) \
+  if (rocket::Logger::GetGlobalLogger()->getLogLevel() <= rocket::Info) \
+  { \
+    rocket::Logger::GetGlobalLogger()->pushLog(rocket::LogEvent(rocket::LogLevel::Info).toString() \
+    + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
+  } \
+
+#define ERRORLOG(str, ...) \
+  if (rocket::Logger::GetGlobalLogger()->getLogLevel() <= rocket::Error) \
+  { \
+    rocket::Logger::GetGlobalLogger()->pushLog(rocket::LogEvent(rocket::LogLevel::Error).toString() \
+      + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
+  } \
+
+#define UNKNOWNLOG(str, ...)\
+    rocket::Logger::GetGlobalLogger()->pushLog((new rocket::LogEvent(rocket::LogLevel::Unknown))->toString() + rocket::formatString(str,##__VA_ARGS__)+"\n");\
     rocket::Logger::GetGlobalLogger()->log();\
 
 
-
+//日志级别
 enum LogLevel{
+    Unknown = 0,
     Debug =1,
     Info = 2,
     Error = 3
 };
 
 
+
 class Logger{
     public:
         typedef std::shared_ptr<Logger> s_ptr;
 
+        Logger(LogLevel level) : m_set_level(level) {}
+
         void pushLog(const std::string& msg);
 
         void log();
+
+        LogLevel getLogLevel() const {
+            return m_set_level;
+        }
     public:
         static Logger* GetGlobalLogger();
-
+        static void InitGlobalLogger();
     private:
         LogLevel m_set_level;
         std::queue<std::string> m_buffer;
+
+        Mutex m_mutex;
+
 };
 
 
 std::string LogLevelToString(LogLevel level);
+LogLevel StringToLogLevel(const std::string &log_level);
 
+//日志项
 class LogEvent{
     public:
         LogEvent(LogLevel level):m_level(level){}
@@ -71,8 +105,8 @@ class LogEvent{
         std::string toString();
 
     private:
-        std::string m_file_name;
-        std::string m_file_line;
+        std::string m_file_name; //文件名
+        std::string m_file_line; //文件行
         int32_t m_pid; //进程号
         int32_t m_thread_id; //线程号
         std::string m_time; //时间
