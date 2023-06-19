@@ -1,35 +1,39 @@
 #ifndef ROCKET_COMMON_LOG_H
 #define ROCKET_COMMON_LOG_H
 
-#include<string>
-#include<memory>
-#include<queue>
-#include"rocket/common/config.h"
-#include"rocket/common/mutex.h"
+#include <string>
+#include <queue>
+#include <memory>
+#include <semaphore.h>
+
+#include "rocket/common/config.h"
+#include "rocket/common/mutex.h"
+#include "rocket/net/timer_event.h"
 
 namespace rocket{
 
 template<typename... Args>
 std::string formatString(const char* str,Args&&... args){
     int size = snprintf(nullptr,0,str,args...);
-
+  
     std::string result;
     if(size>0){
         result.resize(size);
         snprintf(&result[0],size+1,str,args...);
     }
+    
 
     return result;
 }
 
-/*宏打印日志信息*/
 
 #define DEBUGLOG(str, ...) \
   if (rocket::Logger::GetGlobalLogger()->getLogLevel() && rocket::Logger::GetGlobalLogger()->getLogLevel() <= rocket::Debug) \
   { \
     rocket::Logger::GetGlobalLogger()->pushLog(rocket::LogEvent(rocket::LogLevel::Debug).toString() \
       + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
-  } \
+    rocket::Logger::GetGlobalLogger()->log(); \     
+  }\
 
 
 #define INFOLOG(str, ...) \
@@ -37,6 +41,7 @@ std::string formatString(const char* str,Args&&... args){
   { \
     rocket::Logger::GetGlobalLogger()->pushLog(rocket::LogEvent(rocket::LogLevel::Info).toString() \
     + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
+    rocket::Logger::GetGlobalLogger()->log(); \
   } \
 
 #define ERRORLOG(str, ...) \
@@ -44,11 +49,33 @@ std::string formatString(const char* str,Args&&... args){
   { \
     rocket::Logger::GetGlobalLogger()->pushLog(rocket::LogEvent(rocket::LogLevel::Error).toString() \
       + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
+    rocket::Logger::GetGlobalLogger()->log(); \ 
   } \
 
-#define UNKNOWNLOG(str, ...)\
-    rocket::Logger::GetGlobalLogger()->pushLog((new rocket::LogEvent(rocket::LogLevel::Unknown))->toString() + rocket::formatString(str,##__VA_ARGS__)+"\n");\
-    rocket::Logger::GetGlobalLogger()->log();\
+/*
+#define APPDEBUGLOG(str, ...) \
+  if (rocket::Logger::GetGlobalLogger()->getLogLevel() <= rocket::Debug) \
+  { \
+    rocket::Logger::GetGlobalLogger()->pushAppLog(rocket::LogEvent(rocket::LogLevel::Debug).toString() \
+      + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
+  } \
+
+
+#define APPINFOLOG(str, ...) \
+  if (rocket::Logger::GetGlobalLogger()->getLogLevel() <= rocket::Info) \
+  { \
+    rocket::Logger::GetGlobalLogger()->pushAppLog(rocket::LogEvent(rocket::LogLevel::Info).toString() \
+    + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
+  } \
+
+#define APPERRORLOG(str, ...) \
+  if (rocket::Logger::GetGlobalLogger()->getLogLevel() <= rocket::Error) \
+  { \
+    rocket::Logger::GetGlobalLogger()->pushAppLog(rocket::LogEvent(rocket::LogLevel::Error).toString() \
+      + "[" + std::string(__FILE__) + ":" + std::to_string(__LINE__) + "]\t" + rocket::formatString(str, ##__VA_ARGS__) + "\n");\
+  } \
+  */
+
 
 
 //日志级别
@@ -60,7 +87,7 @@ enum LogLevel{
 };
 
 
-
+//日志类
 class Logger{
     public:
         typedef std::shared_ptr<Logger> s_ptr;
@@ -92,7 +119,7 @@ LogLevel StringToLogLevel(const std::string &log_level);
 //日志项
 class LogEvent{
     public:
-        LogEvent(LogLevel level):m_level(level){}
+        LogEvent(LogLevel level): m_level(level){}
 
         
         std::string getFileName() const{
@@ -112,7 +139,7 @@ class LogEvent{
         std::string m_time; //时间
 
         LogLevel m_level;
-        Logger::s_ptr m_logger;
+        //Logger::s_ptr m_logger;
 };
 
 

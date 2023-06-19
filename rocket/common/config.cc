@@ -13,7 +13,7 @@
 
 //读取配置文件内容，字符串
 #define READ_STR_FROM_XML_NODE(name,parent) \
-    TiXmlElement* name##_node = parent->FirstChildElement("log_level"); \
+    TiXmlElement* name##_node = parent->FirstChildElement(#name); \
     if(!name##_node || !name##_node->GetText()){  \
         printf("Start rocket server error, failed to read node[%s]",#name);\
         exit(0); \
