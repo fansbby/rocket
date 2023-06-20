@@ -1,6 +1,5 @@
 
-#include<math.h>
-#include<algorithm>
+#include<string.h>
 #include"rocket/net/tcp/tcp_buffer.h"
 #include"rocket/common/log.h"
 
@@ -49,7 +48,7 @@ namespace rocket{
         int read_size =readAble()>size?size:readAble();
 
         std::vector<char> tmp(read_size);
-        memcpy(&tmp[0],m_buffer[m_read_index],read_size);
+        memcpy(&tmp[0],&m_buffer[m_read_index],read_size);
 
         re.swap(tmp);
         m_read_index +=read_size;
@@ -62,11 +61,41 @@ namespace rocket{
         std::vector<char> tmp(new_size);
         int count = std::min(new_size,readAble());
 
-        memcpy(&tmp[0],m_buffer[m_read_index],count);
+        memcpy(&tmp[0],&m_buffer[m_read_index],count);
         m_buffer.swap(tmp);
         m_read_index = 0;
         m_write_index = m_read_index+count;
 
     }
 
+    void TcpBuffer::adjustBuffer(){
+        if(m_read_index < (int)m_buffer.size()/3){
+            return ;
+        }
+        std::vector<char> buff(m_buffer.size());
+        int count = readAble();
+        m_buffer.swap(buff);
+        m_read_index =0;
+        m_write_index = m_read_index + count;
+
+        buff.clear();
+    }
+
+
+    void TcpBuffer::moveReadIndex(int size){
+        size_t j = size + m_read_index;
+        if(j >= m_buffer.size()){
+            ERRORLOG("moveReadIndex error , invalid size %d,oil_read_index %d , buffer size %d",size,m_read_index,m_buffer.size());
+        }
+        m_read_index = j;
+        adjustBuffer();
+    }
+    void TcpBuffer::moveWriteIndex(int size){
+        size_t j = size + m_write_index;
+        if(j >= m_buffer.size()){
+            ERRORLOG("moveWriteIndex error , invalid size %d,oil_read_index %d , buffer size %d",size,m_write_index,m_buffer.size());
+        }
+        m_write_index = j;
+        adjustBuffer();
+    }
 }

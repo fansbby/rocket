@@ -78,7 +78,6 @@ namespace rocket{
             << "[" << m_pid << ":" << m_thread_id << "]\t";
           
         
-        std::cout<<ss.str();
         return ss.str();
     }
 

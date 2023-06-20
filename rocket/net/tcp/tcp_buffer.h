@@ -21,6 +21,10 @@ public:
     void readFromBuffer(std::vector<char> & re,int size);
 
     void resizeBuffer(int new_size);
+    void adjustBuffer();
+
+    void moveReadIndex(int size);
+    void moveWriteIndex(int size);
 
 private:
     int m_read_index{0};
