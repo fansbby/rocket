@@ -8,19 +8,21 @@
 #include "rocket/common/util.h"
 
 
+//如果fd已经在监听队列里面了，那么只用修改，否则是添加
 #define ADD_TO_EPOLL() \
-    auto it = m_listen_fds.find(event->getFd());\
-    int op = EPOLL_CTL_ADD;\
-    if(it != m_listen_fds.end()){\
-        op =EPOLL_CTL_MOD;\
-    }else{\
-        epoll_event tmp = event->getEpollEvent();\
-        int rt =epoll_ctl(m_epoll_fd,op,event->getFd(),&tmp);\
-        if(rt == -1){\
-            ERRORLOG("failed epoll_ctl when add fd,errno=%d,errno info=%s",errno,strerror(errno));\
-        }\
-        DEBUGLOG("add event succ,fd[%d]",event->getFd());\
-    }\
+    auto it = m_listen_fds.find(event->getFd()); \
+    int op = EPOLL_CTL_ADD; \
+    if (it != m_listen_fds.end()) { \
+      op = EPOLL_CTL_MOD; \
+    } \
+    epoll_event tmp = event->getEpollEvent(); \
+    INFOLOG("epoll_event.events = %d", (int)tmp.events); \
+    int rt = epoll_ctl(m_epoll_fd, op, event->getFd(), &tmp); \
+    if (rt == -1) { \
+      ERRORLOG("failed epoll_ctl when add fd, errno=%d, error=%s", errno, strerror(errno)); \
+    } \
+    m_listen_fds.insert(event->getFd()); \
+    DEBUGLOG("add event success, fd[%d]", event->getFd()) \
 
 
 #define DELETE_TO_EPOLL() \
@@ -38,8 +40,7 @@
     DEBUGLOG("delete event success, fd[%d]", event->getFd()); \
 
 
-
-
+/*修改一处BUG，把if-else中else的条件移出来*/
 
 namespace rocket{
 
@@ -53,7 +54,7 @@ namespace rocket{
             exit(0);
         }
         m_thread_id = getThreadId();
-        INFOLOG("succ create event loop in thread %d", m_thread_id);
+        //INFOLOG("succ create event loop in thread %d", m_thread_id);
         
         m_epoll_fd = epoll_create(10);
         if(m_epoll_fd ==-1){
@@ -109,7 +110,7 @@ namespace rocket{
 
         m_wakeup_fd_event->listen(FdEvent::IN_EVENT,[this](){
             char buf[8];
-            while(read(m_wakeup_fd,buf,8) != -1 && errno !=EAGAIN){ // 因为是非阻塞的，所以可以一直读 ，直到返回-1或者错误不等于EAGAIN
+            while(read(m_wakeup_fd, buf, 8) != -1 && errno !=EAGAIN){ // 因为是非阻塞的，所以可以一直读 ，直到返回-1或者错误不等于EAGAIN
                 
             }
             DEBUGLOG("read full bytes from wakeup fd[%d]",m_wakeup_fd);
@@ -120,8 +121,9 @@ namespace rocket{
 
 
     void EventLoop::loop(){
+        m_is_looping = true;
         while(!m_stop_flag){
-            ScopeMutext<Mutex> lock(m_mutex);
+            ScopeMutex<Mutex> lock(m_mutex);
             std::queue<std::function<void()>> tmp_tasks ;  //加锁保证线程安全
             m_pending_tasks.swap(tmp_tasks);
             lock.unlock();
@@ -142,7 +144,7 @@ namespace rocket{
             epoll_event result_event[g_epoll_max_events];
             //DEBUGLOG("now begin to epoll_wait");
             int rt = epoll_wait(m_epoll_fd,result_event,g_epoll_max_events,time_out);
-            //DEBUGLOG("now end epoll_wait,rt=%d",rt);
+            DEBUGLOG("now end epoll_wait,rt=%d",rt);
             if(rt<0){
                 ERRORLOG("epoll_wait error, errno=%d, error=%s", errno, strerror(errno));
             }else{
@@ -153,6 +155,10 @@ namespace rocket{
                         ERRORLOG("fd_event = NULL, continue");
                         continue;
                     }
+
+                    //int event =(int)(trigger_event.events);
+                    //DEBUGLOG("unknow event =%d",event);
+
                     if(trigger_event.events & EPOLLIN){
                         DEBUGLOG("fd %d trigger EPOLLIN event", fd_event->getFd());
                         addTask(fd_event->handler(FdEvent::IN_EVENT));
@@ -162,17 +168,30 @@ namespace rocket{
                         addTask(fd_event->handler(FdEvent::OUT_EVENT));
                     }
 
+                    if(trigger_event.events & EPOLLERR){
+                        DEBUGLOG("fd %d trigger EPOLLERROR event", fd_event->getFd());
+                        //删除出错的套接字
+                        delEpollEvent(fd_event);
+                        if(fd_event->handler(FdEvent::ERROR_EVENT)!=nullptr){
+                            DEBUGLOG("fd %d add error callback",fd_event->getFd());
+                            addTask(fd_event->handler(FdEvent::OUT_EVENT));
+                        }
+                        
+                    }
+
                 }
             }
         }
     }
 
     void EventLoop::wakeup(){
+        INFOLOG("WAKE UP");
         m_wakeup_fd_event->wakeup();
     }
 
     void EventLoop::stop(){
         m_stop_flag = true;
+        wakeup();
     }
 
     void EventLoop::dealWakeUp(){
@@ -208,7 +227,7 @@ namespace rocket{
     }
 
     void EventLoop::addTask(std::function<void()> cb , bool is_wake_up /*=false*/){
-        ScopeMutext<Mutex> lock(m_mutex);
+        ScopeMutex<Mutex> lock(m_mutex);
         m_pending_tasks.push(cb);
         lock.unlock();
         if(is_wake_up){    
@@ -222,6 +241,10 @@ namespace rocket{
         }
         t_current_eventloop = new EventLoop();
         return t_current_eventloop;
+    }
+
+    bool EventLoop::isLooping(){
+        return m_is_looping;
     }
 
 }

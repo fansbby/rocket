@@ -36,7 +36,7 @@ namespace rocket{
         std::vector<TimerEvent::s_ptr> tmps;
         std::vector<std::pair<int64_t,std::function<void()>>> tasks;
 
-        ScopeMutext<Mutex> lock(m_mutex);
+        ScopeMutex<Mutex> lock(m_mutex);
 
         //删除已经过期的任务，把他们拷贝到新建的临时数组中
         auto it = m_pending_events.begin();
@@ -80,11 +80,11 @@ namespace rocket{
 
 
     void Timer::resetArriveTime(){
-        ScopeMutext<Mutex> lock(m_mutex);
+        ScopeMutex<Mutex> lock(m_mutex);
         auto tmp = m_pending_events;
         lock.unlock();
 
-        if(!tmp.size()){
+        if(tmp.size() == 0){
             return ;
         }
 
@@ -110,14 +110,14 @@ namespace rocket{
         if(rt != 0){
             ERRORLOG("timefd_settime error , errno=%d,error=%s",errno,strerror(errno));
         }
-        DEBUGLOG("timer reset to%lld",now + timeval);
+        //DEBUGLOG("timer reset to%lld",now + timeval);
     }
 
 
     void Timer::addTimerEvent(TimerEvent::s_ptr event){
         bool is_reset_timefd = false;
 
-        ScopeMutext<Mutex> lock(m_mutex);
+        ScopeMutex<Mutex> lock(m_mutex);
         if(m_pending_events.empty()){
             is_reset_timefd = true;
         }else{
@@ -135,18 +135,26 @@ namespace rocket{
     }
 
     void Timer::deleteTimerEvent(TimerEvent::s_ptr event){
+        event->setCancled(true);
 
-        ScopeMutext<Mutex> lock(m_mutex);
-        
-        auto begin = m_pending_events.upper_bound(event->getArriveTime());
-        auto end = m_pending_events.lower_bound(event->getArriveTime());
+        ScopeMutex<Mutex> lock(m_mutex);
 
-        for(auto it =begin;it!=end;++it){
-            if(it->second == event){
-                m_pending_events.erase(it);
+        auto begin = m_pending_events.lower_bound(event->getArriveTime());
+        auto end = m_pending_events.upper_bound(event->getArriveTime());
+
+        auto it = begin;
+        for (it = begin; it != end; ++it) {
+            if (it->second == event) {
+            break;
             }
         }
+
+        if (it != end) {
+            m_pending_events.erase(it);
+        }
         lock.unlock();
+
+        DEBUGLOG("success delete TimerEvent at arrive time %lld", event->getArriveTime());
 
     }
 }

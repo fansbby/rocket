@@ -12,6 +12,7 @@ namespace rocket{
 
     int64_t getNowMs();
 
+    int32_t getInt32FromNetBytes(const char* buf);
 }
 
 

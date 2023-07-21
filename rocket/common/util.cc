@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <string.h>
 #include "rocket/common/util.h"
 
 
@@ -33,5 +34,11 @@ namespace rocket{
         gettimeofday(&val,NULL);
 
         return val.tv_sec*1000 + val.tv_usec/1000;
+    }
+
+    int32_t getInt32FromNetBytes(const char* buf){
+        int32_t re;
+        memcpy(&re,buf,sizeof(re));
+        return ntohl(re);
     }
 }

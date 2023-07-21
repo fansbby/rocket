@@ -1,6 +1,8 @@
 #ifndef ROCKET_NET_TCP_SERVER_H
 #define ROCKET_NET_TCP_SERVER_H
 
+#include<set>
+#include"rocket/net/tcp/tcp_connection.h"
 #include"rocket/net/tcp/net_addr.h"
 #include"rocket/net/tcp/tcp_acceptor.h"
 #include"rocket/net/eventloop.h"
@@ -21,6 +23,10 @@ private:
 
     //当有新连接时需要实现
     void onAccept();
+
+
+    // 清除 closed 的连接
+    void ClearClientTimerFunc();
 private:
     TcpAcceptor::s_ptr m_acceptor;
  
@@ -33,6 +39,10 @@ private:
     FdEvent* m_listen_fd_event;
 
     int m_client_count{0};
+
+    std::set<TcpConnection::s_ptr> m_client;
+
+    TimerEvent::s_ptr m_clear_client_timer_event;
 };
 
 

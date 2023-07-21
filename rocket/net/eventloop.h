@@ -25,9 +25,9 @@ public:
 
     void stop();
 
-    void addEpollEvent(FdEvent* fdevent);
+    void addEpollEvent(FdEvent* event);
 
-    void delEpollEvent(FdEvent* fdevent);
+    void delEpollEvent(FdEvent* event);
 
     bool isInLoopThread(); //判断当前是否有线程（是不是执行event loop的IO线程），如果是别的线程的话不能添加，因为有线程竞争
 
@@ -35,6 +35,8 @@ public:
     void addTask(std::function<void()> cb , bool is_wake_up =false);
 
     void addTimerEvent(TimerEvent::s_ptr event);
+
+    bool isLooping();
 
 public:
     static EventLoop* GetCurrentEventloop();
@@ -62,6 +64,8 @@ private:
     Mutex m_mutex; //互斥锁
 
     Timer* m_timer{NULL};
+
+    bool m_is_looping{false};
 };
 
 

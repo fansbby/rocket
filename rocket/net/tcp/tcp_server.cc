@@ -1,7 +1,8 @@
-#include"rocket/net/tcp/tcp_server.h"
-#include"rocket/common/log.h"
-
-
+#include "rocket/net/tcp/tcp_server.h"
+#include "rocket/net/eventloop.h"
+#include "rocket/net/tcp/tcp_connection.h"
+#include "rocket/common/log.h"
+#include "rocket/common/config.h"
 
 namespace rocket{
 
@@ -11,9 +12,17 @@ namespace rocket{
     }
 
     TcpServer::~TcpServer(){
-        if(m_main_event_loop){
+        if (m_main_event_loop) {
             delete m_main_event_loop;
-            m_main_event_loop=NULL;
+            m_main_event_loop = NULL;
+        }
+        if (m_io_thread_group) {
+            delete m_io_thread_group;
+            m_io_thread_group = NULL; 
+        }
+        if (m_listen_fd_event) {
+            delete m_listen_fd_event;
+            m_listen_fd_event = NULL;
         }
     }
 
@@ -26,24 +35,54 @@ namespace rocket{
         m_acceptor =std::make_shared<TcpAcceptor>(m_local_addr);
 
         m_main_event_loop = EventLoop::GetCurrentEventloop();
-        m_io_thread_group = new IOThreadGroup(2);
+        m_io_thread_group = new IOThreadGroup(Config::GetGlobalConfig()->m_io_threads);
 
     
-        m_listen_fd_event = new FdEvent(m_acceptor->getlistenfd());
+        m_listen_fd_event = new FdEvent(m_acceptor->getListenFd());
         m_listen_fd_event->listen(FdEvent::IN_EVENT,std::bind(&TcpServer::onAccept,this));
         
         m_main_event_loop->addEpollEvent(m_listen_fd_event);
+
+        m_clear_client_timer_event = std::make_shared<TimerEvent>(5000, true, std::bind(&TcpServer::ClearClientTimerFunc, this));
+	    m_main_event_loop->addTimerEvent(m_clear_client_timer_event);
 
 
     }
 
     void TcpServer::onAccept(){
-        int client_fd =m_acceptor->accept();
-        //FdEvent client_fd_event(client_fd);
+        auto re =m_acceptor->accept();
+        int client_fd = re.first;
+        NetAddr::s_ptr peer_addr =re.second;
+        
         ++m_client_count;
 
-        //TODO:把clientfd 添加到任意io线程里面
-        //m_io_thread_group->getIOThread()->getEventLoop()->addEpollEvent(client_fd_event);
+        //把clientfd 添加到任意io线程里面
+        IOThread* io_thread =m_io_thread_group->getIOThread();
+        TcpConnection::s_ptr connection = std::make_shared<TcpConnection>(io_thread->getEventLoop(),client_fd,128,peer_addr,m_local_addr);
+
+        connection->setState(Connected);
+        m_client.insert(connection);
+        
+
+
         INFOLOG("TcpServer succ get client,fd =%d",client_fd);
+    }
+  
+
+    void TcpServer::ClearClientTimerFunc() {
+        auto it = m_client.begin();
+        for (it = m_client.begin(); it != m_client.end(); ) {
+            // TcpConnection::ptr s_conn = i.second;
+                // DebugLog << "state = " << s_conn->getState();
+            if ((*it) != nullptr && (*it).use_count() > 0 && (*it)->getState() == Closed) {
+            // need to delete TcpConnection
+            DEBUGLOG("TcpConection [fd:%d] will delete, state=%d", (*it)->getFd(), (*it)->getState());
+            it = m_client.erase(it);
+            } else {
+            it++;
+            }
+            
+        }
+
     }
 }

@@ -1,0 +1,2 @@
+[DEBUG]	[23-07-19 15:34:25.29]	[66904:66907]	[99998888][makeOrder][testcases/test_rpc_server.cc:42]	call makeOrder success
+[DEBUG]	[23-07-19 15:54:13.573]	[67292:67295]	[99998888][makeOrder][testcases/test_rpc_server.cc:42]	call makeOrder success

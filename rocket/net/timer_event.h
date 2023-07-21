@@ -15,7 +15,7 @@ class TimerEvent
 public:
     typedef std::shared_ptr<TimerEvent> s_ptr;
 
-    TimerEvent(int interval, bool is_repeated,std::function<void()> cb);
+    TimerEvent(int interval, bool is_repeated, std::function<void()> cb);
 
     ~TimerEvent();
 
